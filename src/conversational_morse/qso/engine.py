@@ -92,7 +92,11 @@ class QsoEngine:
         if turn is None:
             msg = "the conversation is finished"
             raise ValueError(msg)
-        return grade(text, turn.expectations)
+        return grade(
+            text,
+            turn.expectations,
+            (self._user_callsign, self._dx_callsign),
+        )
 
     def record(self, speaker: Speaker, text: str) -> None:
         self.transcript.append((speaker, text))

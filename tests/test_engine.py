@@ -62,7 +62,7 @@ def test_model_answer_matches_current_user_turn() -> None:
     )
     engine.advance()  # move to the user's answer turn
     assert engine.is_user_turn is True
-    assert engine.model_answer() == "DL1ABC DE W6ABC W6ABC K"
+    assert engine.model_answer() == "W6ABC W6ABC"
 
 
 def test_grade_current_uses_turn_expectations() -> None:

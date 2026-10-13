@@ -229,7 +229,7 @@ def build_conversation(
             Turn(
                 Speaker.DX,
                 "ANSWER",
-                f"{user.callsign} DE {dx.callsign} {dx.callsign} K",
+                f"{dx.callsign} {dx.callsign}",
             ),
         )
         turns.append(_user_protocol_one(user, dx, greeting, "CALL"))
@@ -252,9 +252,9 @@ def build_conversation(
             Turn(
                 Speaker.USER,
                 "ANSWER",
-                f"{dx.callsign} DE {user.callsign} {user.callsign} K",
-                hint="Answer the CQ with their call DE your call, twice.",
-                expectations=(_callsign_expectations(user, dx),),
+                f"{user.callsign} {user.callsign}",
+                hint="Answer the CQ by sending your own callsign, twice.",
+                expectations=(Expectation("CALL", (user.callsign,), require_all=True),),
             ),
         )
         turns.append(
@@ -327,12 +327,24 @@ def find_wrong_callsigns(text: str, expected: frozenset[str]) -> tuple[str, ...]
     return tuple(wrong)
 
 
-def grade(text: str, expectations: tuple[Expectation, ...]) -> CopyReport:
-    """Compare the operator's keyed text against the expected information."""
+def grade(
+    text: str,
+    expectations: tuple[Expectation, ...],
+    known_calls: tuple[str, ...] = (),
+) -> CopyReport:
+    """Compare the operator's keyed text against the expected information.
+
+    ``known_calls`` lists every callsign that is valid for this exchange; a
+    callsign-like token outside that set is reported as ``wrong``. When it is
+    omitted the expected ``CALL`` patterns are used instead.
+    """
     haystack = normalize(text)
     found: list[str] = []
     missing: list[str] = []
+    call_expected = False
     for expectation in expectations:
+        if expectation.label == "CALL":
+            call_expected = True
         patterns = [normalize(pattern) for pattern in expectation.patterns]
         if expectation.require_all:
             present = bool(patterns) and all(p in haystack for p in patterns)
@@ -342,12 +354,17 @@ def grade(text: str, expectations: tuple[Expectation, ...]) -> CopyReport:
             found.append(expectation.label)
         else:
             missing.append(expectation.label)
-    expected_calls = frozenset(
-        normalize(pattern)
-        for expectation in expectations
-        if expectation.label == "CALL"
-        for pattern in expectation.patterns
-    )
+    if not call_expected:
+        return CopyReport(tuple(found), tuple(missing), ())
+    if known_calls:
+        expected_calls = frozenset(normalize(call) for call in known_calls)
+    else:
+        expected_calls = frozenset(
+            normalize(pattern)
+            for expectation in expectations
+            if expectation.label == "CALL"
+            for pattern in expectation.patterns
+        )
     wrong = find_wrong_callsigns(text, expected_calls)
     return CopyReport(tuple(found), tuple(missing), wrong)
 

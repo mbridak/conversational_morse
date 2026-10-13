@@ -59,7 +59,7 @@ def test_user_calls_cq_starts_with_qrl_and_cq() -> None:
     assert "QRL?" in turns[0].text
     assert turns[1].text == "CQ CQ DE W6ABC W6ABC K"
     assert turns[2].speaker is Speaker.DX
-    assert turns[2].text == "W6ABC DE DL1ABC DL1ABC K"
+    assert turns[2].text == "DL1ABC DL1ABC"
 
 
 def test_dx_calls_cq_starts_with_dx() -> None:
@@ -193,7 +193,7 @@ def test_grade_ignores_rig_like_tokens_as_callsigns() -> None:
     assert report.is_complete is True
 
 
-def test_answering_cq_needs_the_dx_call() -> None:
+def test_answering_cq_needs_only_your_own_call() -> None:
     turns = build_conversation(
         STATION,
         DX,
@@ -206,11 +206,25 @@ def test_answering_cq_needs_the_dx_call() -> None:
         for turn in turns
         if turn.label == "ANSWER" and turn.speaker is Speaker.USER
     )
-    complete = grade(f"{DX.callsign} DE {STATION.callsign}", answer.expectations)
+    known = (STATION.callsign, DX.callsign)
+
+    # Sending just your own callsign is the correct way to answer a CQ.
+    complete = grade(STATION.callsign, answer.expectations, known)
     assert complete.is_complete is True
-    incomplete = grade(f"{STATION.callsign} K", answer.expectations)
-    assert incomplete.is_complete is False
-    assert incomplete.missing == ("CALL",)
+
+    # Naming the DX while answering is not held against you either.
+    with_dx_call = grade(
+        f"{DX.callsign} {STATION.callsign}",
+        answer.expectations,
+        known,
+    )
+    assert with_dx_call.is_complete is True
+    assert with_dx_call.wrong == ()
+
+    # Sending only the DX call, without your own, fails the check.
+    only_dx = grade(DX.callsign, answer.expectations, known)
+    assert only_dx.is_complete is False
+    assert only_dx.missing == ("CALL",)
 
 
 def test_find_wrong_callsigns_returns_unique_mismatches() -> None:

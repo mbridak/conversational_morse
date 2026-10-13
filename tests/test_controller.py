@@ -168,8 +168,8 @@ def test_incomplete_over_asks_for_repeat_without_advancing(
     assert engine is not None
     index_before = engine.index
 
-    # Answer without the DX station's callsign, so the check must fail.
-    controller.submit_typed(STATION.callsign)
+    # Send only the DX station's call, so the check must fail.
+    controller.submit_typed(engine.dx_callsign)
     assert state_of(controller) is SessionState.USER_SENDING
     controller._on_tx_complete()  # operator over keyed -> DX repeat request
     assert state_of(controller) is SessionState.DX_SENDING
@@ -188,7 +188,7 @@ def test_incomplete_over_continues_after_max_attempts(
     start_index = engine.index
 
     for attempt in range(1, ctrl_mod.MAX_OVER_ATTEMPTS + 1):
-        controller.submit_typed(STATION.callsign)  # never includes the DX call
+        controller.submit_typed(engine.dx_callsign)  # never sends your own call
         controller._on_tx_complete()  # finish keying the over
         if attempt < ctrl_mod.MAX_OVER_ATTEMPTS:
             assert state_of(controller) is SessionState.DX_SENDING
@@ -211,13 +211,13 @@ def test_advisory_mode_advances_on_incomplete_over(
     assert engine is not None
     start_index = engine.index
 
-    controller.submit_typed(STATION.callsign)  # incomplete, but checks are off
+    controller.submit_typed(engine.dx_callsign)  # incomplete, but checks are off
     controller._on_tx_complete()
     assert engine.index == start_index + 1
     assert state_of(controller) is SessionState.DX_SENDING
 
 
-def test_correct_over_with_both_calls_advances(
+def test_correct_cq_answer_advances(
     controller: SessionController,
 ) -> None:
     controller.start_qso(QsoMode.DX_CALLS_CQ, QsoLength.SHORT, STATION)

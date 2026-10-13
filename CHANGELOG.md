@@ -23,8 +23,10 @@ All notable changes to this project are documented here.
 - The DX station now checks every operator over before continuing. Missing
   information or a callsign that matches neither station makes the DX ask for a
   repeat, naming the items to resend. After three tries it moves on. The checks
-  cover each portion, including the CQ answer callsigns, all protocol details,
-  the 73/SK sign-off and the closing two dits.
+  cover each portion, including your own callsign in the CQ answer, all protocol
+  details, the 73/SK sign-off and the closing two dits. Answering a CQ now sends
+  just your own callsign (as it should), and naming the DX station is not
+  treated as an error.
 - Added a **Require correct copy** setting (on by default) to return to
   advisory-only reporting.
 
