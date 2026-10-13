@@ -16,6 +16,9 @@ All notable changes to this project are documented here.
 - Copy grading that checks whether your overs contained the expected
   information, with three contact lengths (short, medium, full).
 - Station setup dialog and JSON configuration persistence.
+- Packaged for distribution on PyPI: full project metadata, an MIT license, a
+  `conversational-morse` console entry point, a `py.typed` marker, and a version
+  single-sourced from the package.
 - Full test suite, ruff and mypy clean.
 
 ### Changed

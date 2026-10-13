@@ -1,5 +1,9 @@
 # Conversational Morse
 
+[![PyPI](https://img.shields.io/pypi/v/conversational-morse.svg)](https://pypi.org/project/conversational-morse/)
+[![Python versions](https://img.shields.io/pypi/pyversions/conversational-morse.svg)](https://pypi.org/project/conversational-morse/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/mbridak/conversational-morse/blob/main/LICENSE)
+
 A PyQt6 desktop application that simulates a realistic amateur-radio CW (Morse
 code) contact so you can learn and practise sending and copying Morse. It drives
 a **K1EL WinKeyer USB** for both the code that the "other station" sends and the
@@ -23,21 +27,36 @@ information you copied.
 
 ## Requirements
 
-- Python 3.12 or newer, managed with [`uv`](https://docs.astral.sh/uv/).
-- A K1EL WinKeyer (WKUSB or similar) and, for sending, a set of paddles.
+- Python 3.12 or newer.
+- A K1EL WinKeyer (WKUSB or similar) and, for sending, a set of paddles. The
+  built-in simulator lets you practise with no hardware at all.
 - On macOS the WinKeyer appears as a `/dev/cu.usbserial-*` device.
 
-## Install and run
+## Install
+
+Install the released package from [PyPI](https://pypi.org/project/conversational-morse/):
+
+```sh
+uv tool install conversational-morse
+```
+
+or into the active virtual environment:
+
+```sh
+pip install conversational-morse
+```
+
+Then launch it:
+
+```sh
+conversational-morse
+```
+
+To run from a source checkout instead (development):
 
 ```sh
 uv sync
-uv run python main.py
-```
-
-Or, once installed, use the console entry point:
-
-```sh
-uv run conversational-morse
+uv run conversational-morse   # or: uv run python main.py
 ```
 
 ## Using the application
