@@ -13,7 +13,14 @@ from .models import (
     Turn,
     random_dx_station,
 )
-from .script import build_conversation, grade, greeting_for_hour, normalize
+from .script import (
+    build_conversation,
+    find_wrong_callsigns,
+    grade,
+    greeting_for_hour,
+    normalize,
+    repeat_request,
+)
 
 __all__ = [
     "CopyReport",
@@ -25,8 +32,10 @@ __all__ = [
     "Speaker",
     "Turn",
     "build_conversation",
+    "find_wrong_callsigns",
     "grade",
     "greeting_for_hour",
     "normalize",
     "random_dx_station",
+    "repeat_request",
 ]

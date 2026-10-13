@@ -156,3 +156,77 @@ def test_conversation_can_run_to_completion(
     for _ in range(len(engine.turns)):
         engine.advance()
     assert engine.is_finished is True
+
+
+def test_incomplete_over_asks_for_repeat_without_advancing(
+    controller: SessionController,
+) -> None:
+    controller.start_qso(QsoMode.DX_CALLS_CQ, QsoLength.SHORT, STATION)
+    controller._on_tx_complete()  # DX CQ finishes -> the operator's turn
+    assert state_of(controller) is SessionState.AWAITING_USER
+    engine = controller.engine
+    assert engine is not None
+    index_before = engine.index
+
+    # Answer without the DX station's callsign, so the check must fail.
+    controller.submit_typed(STATION.callsign)
+    assert state_of(controller) is SessionState.USER_SENDING
+    controller._on_tx_complete()  # operator over keyed -> DX repeat request
+    assert state_of(controller) is SessionState.DX_SENDING
+    controller._on_tx_complete()  # repeat request sent -> same turn again
+    assert state_of(controller) is SessionState.AWAITING_USER
+    assert engine.index == index_before
+
+
+def test_incomplete_over_continues_after_max_attempts(
+    controller: SessionController,
+) -> None:
+    controller.start_qso(QsoMode.DX_CALLS_CQ, QsoLength.SHORT, STATION)
+    controller._on_tx_complete()
+    engine = controller.engine
+    assert engine is not None
+    start_index = engine.index
+
+    for attempt in range(1, ctrl_mod.MAX_OVER_ATTEMPTS + 1):
+        controller.submit_typed(STATION.callsign)  # never includes the DX call
+        controller._on_tx_complete()  # finish keying the over
+        if attempt < ctrl_mod.MAX_OVER_ATTEMPTS:
+            assert state_of(controller) is SessionState.DX_SENDING
+            controller._on_tx_complete()  # repeat request completes
+            assert state_of(controller) is SessionState.AWAITING_USER
+            assert engine.index == start_index
+        else:
+            assert engine.index == start_index + 1
+            assert state_of(controller) is SessionState.DX_SENDING
+
+
+def test_advisory_mode_advances_on_incomplete_over(
+    controller: SessionController,
+) -> None:
+    config = KeyerConfig(wpm=20, use_simulator=True, require_correct_copy=False)
+    controller.configure_settings(config)
+    controller.start_qso(QsoMode.DX_CALLS_CQ, QsoLength.SHORT, STATION)
+    controller._on_tx_complete()
+    engine = controller.engine
+    assert engine is not None
+    start_index = engine.index
+
+    controller.submit_typed(STATION.callsign)  # incomplete, but checks are off
+    controller._on_tx_complete()
+    assert engine.index == start_index + 1
+    assert state_of(controller) is SessionState.DX_SENDING
+
+
+def test_correct_over_with_both_calls_advances(
+    controller: SessionController,
+) -> None:
+    controller.start_qso(QsoMode.DX_CALLS_CQ, QsoLength.SHORT, STATION)
+    controller._on_tx_complete()
+    engine = controller.engine
+    assert engine is not None
+    start_index = engine.index
+
+    controller.submit_typed(engine.model_answer())
+    controller._on_tx_complete()
+    assert engine.index == start_index + 1
+    assert state_of(controller) is SessionState.DX_SENDING

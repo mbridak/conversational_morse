@@ -120,6 +120,15 @@ class MainWindow(QMainWindow):
         settings.addWidget(self.sidetone_combo)
         self.station_button = QPushButton("Station setup...")
         settings.addWidget(self.station_button)
+        self.require_copy_check = QCheckBox("Require correct copy")
+        self.require_copy_check.setChecked(
+            self._config.keyer.require_correct_copy,
+        )
+        self.require_copy_check.setToolTip(
+            "Make the DX station ask for a repeat when your over is missing "
+            "information or uses the wrong callsign.",
+        )
+        settings.addWidget(self.require_copy_check)
         settings.addStretch(1)
         outer.addLayout(settings)
 
@@ -203,6 +212,7 @@ class MainWindow(QMainWindow):
         self.simulator_check.toggled.connect(lambda _: self._refresh_ports())
         self.wpm_spin.valueChanged.connect(self._on_wpm_changed)
         self.station_button.clicked.connect(self._open_station_dialog)
+        self.require_copy_check.toggled.connect(self._on_require_copy_toggled)
 
         self.call_cq_button.clicked.connect(
             lambda: self._start_qso(QsoMode.USER_CALLS_CQ),
@@ -261,7 +271,13 @@ class MainWindow(QMainWindow):
         config.use_simulator = self.simulator_check.isChecked()
         config.wpm = self.wpm_spin.value()
         config.sidetone_index = int(self.sidetone_combo.currentData())
+        config.require_correct_copy = self.require_copy_check.isChecked()
         return config
+
+    def _on_require_copy_toggled(self, checked: bool) -> None:
+        self._config.keyer.require_correct_copy = checked
+        self.controller.configure_settings(self._config.keyer)
+        save_config(self._config)
 
     def _on_connection_changed(self, connected: bool) -> None:
         self.connect_button.setText("Disconnect" if connected else "Connect")
@@ -302,14 +318,17 @@ class MainWindow(QMainWindow):
         self.paddle_label.setText(f"Received from paddles: {text or '-'}")
 
     def _on_copy_report(self, report: CopyReport) -> None:
-        if report.total == 0:
+        if report.total == 0 and not report.wrong:
             self.report_label.setText(f"Copy: {report.percent}% - nice sending!")
             return
-        missing = ", ".join(report.missing) if report.missing else "nothing"
-        verdict = "Solid copy!" if report.is_solid else "Check these:"
-        self.report_label.setText(
-            f"Copy {report.percent}% - {verdict} missing {missing}",
-        )
+        problems: list[str] = []
+        if report.missing:
+            problems.append("missing " + ", ".join(report.missing))
+        if report.wrong:
+            problems.append("wrong call " + ", ".join(report.wrong))
+        detail = "; ".join(problems) if problems else "nothing"
+        verdict = "Solid copy!" if report.is_complete else "Check these:"
+        self.report_label.setText(f"Copy {report.percent}% - {verdict} {detail}")
 
     def _on_error(self, message: str) -> None:
         QMessageBox.warning(self, "Keyer error", message)

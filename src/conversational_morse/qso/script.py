@@ -9,6 +9,7 @@ operator should include, which the engine later grades.
 from __future__ import annotations
 
 import random
+import re
 
 from ..config import StationConfig
 from .models import (
@@ -23,6 +24,11 @@ from .models import (
 )
 
 RST_PATTERNS: tuple[str, ...] = ("599", "5NN")
+
+# A rough amateur callsign: one or two letters, a digit, then letters. The
+# trailing letters keep rig/antenna names such as "FTDX101" or "K3" from being
+# mistaken for callsigns.
+CALLSIGN_PATTERN = re.compile(r"[A-Z]{1,2}\d[A-Z]{1,4}")
 
 
 def greeting_for_hour(hour: int) -> str:
@@ -49,7 +55,11 @@ def _callsign_expectations(
     *stations: StationLike,
     label: str = "CALL",
 ) -> Expectation:
-    return Expectation(label, tuple(s.callsign for s in stations))
+    return Expectation(
+        label,
+        tuple(s.callsign for s in stations),
+        require_all=True,
+    )
 
 
 def protocol_one(
@@ -178,6 +188,7 @@ def _two_dits(speaker: Speaker) -> Turn:
         "73",
         "E E",
         hint="Send the two closing dits (dit dit).",
+        expectations=(Expectation("E E", ("EE",)),),
         is_two_dits=True,
     )
 
@@ -202,6 +213,7 @@ def build_conversation(
                 "QRL",
                 "QRL? QRL?",
                 hint="First check the frequency is clear by sending QRL? twice.",
+                expectations=(Expectation("QRL", ("QRL",)),),
             ),
         )
         turns.append(
@@ -274,6 +286,10 @@ def build_conversation(
                 "END",
                 ending_starter(user, dx),
                 hint="Sign off with your thanks, 73 and SK.",
+                expectations=(
+                    Expectation("73", ("73",)),
+                    Expectation("SK", ("SK",)),
+                ),
             ),
         )
         turns.append(Turn(Speaker.DX, "END", ending_responder(dx, user)))
@@ -287,6 +303,10 @@ def build_conversation(
                 "END",
                 ending_responder(user, dx),
                 hint="Answer their sign-off and send your own SK.",
+                expectations=(
+                    Expectation("73", ("73",)),
+                    Expectation("SK", ("SK",)),
+                ),
             ),
         )
         turns.append(_two_dits(Speaker.DX))
@@ -295,14 +315,58 @@ def build_conversation(
     return turns
 
 
+def find_wrong_callsigns(text: str, expected: frozenset[str]) -> tuple[str, ...]:
+    """Return callsign-like tokens in ``text`` that match no expected call."""
+    if not expected:
+        return ()
+    wrong: list[str] = []
+    for token in CALLSIGN_PATTERN.findall(text.upper()):
+        normalised = normalize(token)
+        if normalised and normalised not in expected and normalised not in wrong:
+            wrong.append(normalised)
+    return tuple(wrong)
+
+
 def grade(text: str, expectations: tuple[Expectation, ...]) -> CopyReport:
     """Compare the operator's keyed text against the expected information."""
     haystack = normalize(text)
     found: list[str] = []
     missing: list[str] = []
     for expectation in expectations:
-        if any(normalize(pattern) in haystack for pattern in expectation.patterns):
+        patterns = [normalize(pattern) for pattern in expectation.patterns]
+        if expectation.require_all:
+            present = bool(patterns) and all(p in haystack for p in patterns)
+        else:
+            present = any(p in haystack for p in patterns)
+        if present:
             found.append(expectation.label)
         else:
             missing.append(expectation.label)
-    return CopyReport(tuple(found), tuple(missing))
+    expected_calls = frozenset(
+        normalize(pattern)
+        for expectation in expectations
+        if expectation.label == "CALL"
+        for pattern in expectation.patterns
+    )
+    wrong = find_wrong_callsigns(text, expected_calls)
+    return CopyReport(tuple(found), tuple(missing), wrong)
+
+
+def repeat_request(
+    dx_callsign: str,
+    user_callsign: str,
+    report: CopyReport,
+) -> str:
+    """Build the DX over that asks the operator to resend missing details."""
+    prompts: list[str] = []
+    if report.wrong:
+        prompts.append("CALL?")
+    for item in report.missing:
+        prompt = f"{item}?"
+        if prompt not in prompts:
+            prompts.append(prompt)
+    body = " ".join(prompts) if prompts else "PSE RPT"
+    return (
+        f"{user_callsign} DE {dx_callsign} {body} AGN "
+        f"{user_callsign} DE {dx_callsign} K"
+    )

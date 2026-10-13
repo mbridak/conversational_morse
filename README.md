@@ -64,6 +64,18 @@ uv run conversational-morse
 5. After each of your overs you get a **copy report** showing which required
    pieces of information were present.
 
+### Correct-copy checking
+
+With **Require correct copy** enabled (the default), the DX station checks each
+of your overs before the contact moves on. Every portion is checked — the CQ
+answer must carry both callsigns, the protocol exchanges must carry their
+details (RST/QTH/name, rig/antenna/weather, age/years/key), the sign-off must
+include 73 and SK, and the ending needs the two dits. If something is missing or
+you send a callsign that belongs to neither station, the DX replies naming the
+missing items, for example `W6ABC DE DL1ABC QTH? NAME? AGN`, and asks you to try
+again. After three tries it accepts the over and continues so you never get
+stuck. Turn the checkbox off to return to advisory-only reporting.
+
 ## How it works
 
 | Module | Responsibility |

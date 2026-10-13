@@ -19,13 +19,19 @@ from .script import build_conversation, grade
 class QsoEngine:
     """Drives the operator through a simulated contact one turn at a time."""
 
-    def __init__(self, turns: list[Turn], user_callsign: str) -> None:
+    def __init__(
+        self,
+        turns: list[Turn],
+        user_callsign: str,
+        dx_callsign: str = "",
+    ) -> None:
         if not turns:
             msg = "a conversation needs at least one turn"
             raise ValueError(msg)
         self._turns = turns
         self._index = 0
         self._user_callsign = user_callsign
+        self._dx_callsign = dx_callsign
         self.transcript: list[tuple[Speaker, str]] = []
 
     @classmethod
@@ -39,11 +45,15 @@ class QsoEngine:
         hour: int = 12,
     ) -> QsoEngine:
         turns = build_conversation(user, dx, mode, length, rng, hour)
-        return cls(turns, user.callsign)
+        return cls(turns, user.callsign, dx.callsign)
 
     @property
     def user_callsign(self) -> str:
         return self._user_callsign
+
+    @property
+    def dx_callsign(self) -> str:
+        return self._dx_callsign
 
     @property
     def turns(self) -> list[Turn]:

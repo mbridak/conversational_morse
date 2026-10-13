@@ -6,6 +6,7 @@ import random
 
 from conversational_morse.config import StationConfig
 from conversational_morse.qso.models import (
+    CopyReport,
     DxStation,
     Expectation,
     QsoLength,
@@ -14,9 +15,11 @@ from conversational_morse.qso.models import (
 )
 from conversational_morse.qso.script import (
     build_conversation,
+    find_wrong_callsigns,
     grade,
     greeting_for_hour,
     normalize,
+    repeat_request,
 )
 
 STATION = StationConfig(
@@ -145,7 +148,83 @@ def test_grade_full_marks_solid() -> None:
     assert report.is_solid is True
 
 
+def test_every_user_turn_is_checkable() -> None:
+    """Each portion the operator sends must carry something to be graded."""
+    for mode in (QsoMode.USER_CALLS_CQ, QsoMode.DX_CALLS_CQ):
+        for length in (QsoLength.SHORT, QsoLength.MEDIUM, QsoLength.FULL):
+            turns = build_conversation(
+                STATION,
+                DX,
+                mode,
+                length,
+                rng=random.Random(0),
+            )
+            for turn in turns:
+                if turn.speaker is Speaker.USER:
+                    assert turn.expectations, (mode, length, turn.label)
+
+
 def test_grade_without_expectations_is_full_marks() -> None:
     report = grade("anything", ())
     assert report.total == 0
     assert report.percent == 100
+
+
+def test_callsign_expectation_requires_every_call() -> None:
+    expectations = (Expectation("CALL", ("W6ABC", "DL1ABC"), require_all=True),)
+    assert grade("DL1ABC DE W6ABC", expectations).missing == ()
+    only_mine = grade("W6ABC K", expectations)
+    assert only_mine.missing == ("CALL",)
+    assert only_mine.is_complete is False
+
+
+def test_grade_flags_wrong_callsign() -> None:
+    expectations = (Expectation("CALL", ("W6ABC", "DL1ABC"), require_all=True),)
+    report = grade("DL1ABC DE W7XYZ", expectations)
+    assert report.wrong == ("W7XYZ",)
+    assert report.missing == ("CALL",)
+    assert report.is_complete is False
+
+
+def test_grade_ignores_rig_like_tokens_as_callsigns() -> None:
+    expectations = (Expectation("CALL", ("W6ABC", "DL1ABC"), require_all=True),)
+    report = grade("DL1ABC DE W6ABC RIG FTDX101 PWR 100W", expectations)
+    assert report.wrong == ()
+    assert report.is_complete is True
+
+
+def test_answering_cq_needs_the_dx_call() -> None:
+    turns = build_conversation(
+        STATION,
+        DX,
+        QsoMode.DX_CALLS_CQ,
+        QsoLength.SHORT,
+        rng=random.Random(1),
+    )
+    answer = next(
+        turn
+        for turn in turns
+        if turn.label == "ANSWER" and turn.speaker is Speaker.USER
+    )
+    complete = grade(f"{DX.callsign} DE {STATION.callsign}", answer.expectations)
+    assert complete.is_complete is True
+    incomplete = grade(f"{STATION.callsign} K", answer.expectations)
+    assert incomplete.is_complete is False
+    assert incomplete.missing == ("CALL",)
+
+
+def test_find_wrong_callsigns_returns_unique_mismatches() -> None:
+    assert find_wrong_callsigns("K6GTE K7XYZ K7XYZ", frozenset({"K6GTE"})) == ("K7XYZ",)
+
+
+def test_repeat_request_names_missing_items() -> None:
+    report = CopyReport(found=("CALL",), missing=("QTH", "NAME"))
+    assert repeat_request("DL1ABC", "W6ABC", report) == (
+        "W6ABC DE DL1ABC QTH? NAME? AGN W6ABC DE DL1ABC K"
+    )
+
+
+def test_repeat_request_flags_wrong_call() -> None:
+    report = CopyReport(found=(), missing=("CALL",), wrong=("W7XYZ",))
+    request = repeat_request("DL1ABC", "W6ABC", report)
+    assert request.count("CALL?") == 1

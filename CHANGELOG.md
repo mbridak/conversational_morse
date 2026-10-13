@@ -18,6 +18,16 @@ All notable changes to this project are documented here.
 - Station setup dialog and JSON configuration persistence.
 - Full test suite, ruff and mypy clean.
 
+### Changed
+
+- The DX station now checks every operator over before continuing. Missing
+  information or a callsign that matches neither station makes the DX ask for a
+  repeat, naming the items to resend. After three tries it moves on. The checks
+  cover each portion, including the CQ answer callsigns, all protocol details,
+  the 73/SK sign-off and the closing two dits.
+- Added a **Require correct copy** setting (on by default) to return to
+  advisory-only reporting.
+
 ### Fixed
 
 - Paddle input is now captured as soon as the keyer is connected (and while the

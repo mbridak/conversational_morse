@@ -185,6 +185,7 @@ class Expectation:
 
     label: str
     patterns: tuple[str, ...]
+    require_all: bool = False
 
 
 @dataclass(frozen=True)
@@ -205,10 +206,16 @@ class CopyReport:
 
     found: tuple[str, ...]
     missing: tuple[str, ...]
+    wrong: tuple[str, ...] = ()
 
     @property
     def total(self) -> int:
         return len(self.found) + len(self.missing)
+
+    @property
+    def is_complete(self) -> bool:
+        """True when nothing expected was missing and no wrong call was sent."""
+        return not self.missing and not self.wrong
 
     @property
     def percent(self) -> int:

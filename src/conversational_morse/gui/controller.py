@@ -7,6 +7,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 from enum import Enum
+from functools import partial
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
@@ -29,10 +30,12 @@ from ..qso import (
     QsoMode,
     Speaker,
     random_dx_station,
+    repeat_request,
 )
 
 POLL_INTERVAL_MS = 50
 MAX_RX_BUFFER = 80
+MAX_OVER_ATTEMPTS = 3
 
 
 class SessionState(Enum):
@@ -73,6 +76,7 @@ class SessionController(QObject):
         self._pending_tx: deque[Callable[[], None]] = deque()
         self._rx_buffer = ""
         self._last_paddle_time = 0.0
+        self._attempts = 0
         self._rng = random.Random()
 
         self._timer = QTimer(self)
@@ -159,6 +163,7 @@ class SessionController(QObject):
             return
         dx = random_dx_station(self._rng)
         self._engine = QsoEngine.create(station, dx, mode, length, rng=self._rng)
+        self._attempts = 0
         self.log_message.emit(
             "system",
             f"New QSO with {dx.callsign} ({dx.name}, {dx.qth})",
@@ -206,24 +211,19 @@ class SessionController(QObject):
 
     def submit_typed(self, text: str, *, transmit: bool = True) -> None:
         """Submit an operator turn typed on the keyboard."""
-        engine = self._engine
-        if engine is None or not engine.is_user_turn or not text.strip():
-            return
-        report = engine.grade_current(text)
-        engine.record(Speaker.USER, text)
-        self.log_message.emit("user", text)
-        self.copy_report_ready.emit(report)
-        self._rx_buffer = ""
-        self._transmit_or_advance(text, transmit=transmit)
+        self._submit_user_over(text, transmit=transmit)
 
     def end_over(self) -> None:
         self._complete_user_turn()
 
     def _complete_user_turn(self) -> None:
+        self._submit_user_over(self._rx_buffer, transmit=False)
+
+    def _submit_user_over(self, text: str, *, transmit: bool) -> None:
         engine = self._engine
         if engine is None or not engine.is_user_turn:
             return
-        text = self._rx_buffer.strip()
+        text = text.strip()
         if not text:
             return
         report = engine.grade_current(text)
@@ -231,7 +231,68 @@ class SessionController(QObject):
         self.log_message.emit("user", text)
         self.copy_report_ready.emit(report)
         self._rx_buffer = ""
-        self._advance()
+        self.user_buffer_changed.emit("")
+        if self._config.require_correct_copy and not report.is_complete:
+            self._handle_incomplete_over(text, report, transmit=transmit)
+            return
+        self._attempts = 0
+        self._transmit_or_advance(text, transmit=transmit)
+
+    def _handle_incomplete_over(
+        self,
+        text: str,
+        report: CopyReport,
+        *,
+        transmit: bool,
+    ) -> None:
+        """Ask the DX station to request a repeat instead of advancing."""
+        self._attempts += 1
+        if self._attempts >= MAX_OVER_ATTEMPTS:
+            self.log_message.emit(
+                "system",
+                f"Still incomplete after {MAX_OVER_ATTEMPTS} tries; moving on.",
+            )
+            self._attempts = 0
+            self._transmit_or_advance(text, transmit=transmit)
+            return
+        engine = self._engine
+        if engine is None:
+            return
+        self.log_message.emit(
+            "system",
+            f"Copy incomplete (attempt {self._attempts} of {MAX_OVER_ATTEMPTS}). "
+            "The DX is asking for a repeat.",
+        )
+        request = repeat_request(engine.dx_callsign, engine.user_callsign, report)
+        device = self._device
+        if transmit and device is not None and device.is_open:
+            self._state = SessionState.USER_SENDING
+            self.state_changed.emit()
+            device.send_text(text)
+            self._pending_tx.append(partial(self._send_dx_repeat, request))
+        else:
+            self._send_dx_repeat(request)
+
+    def _send_dx_repeat(self, message: str) -> None:
+        self.log_message.emit("dx", message)
+        device = self._device
+        if device is None or not device.is_open:
+            self._reopen_user_turn()
+            return
+        self._state = SessionState.DX_SENDING
+        self.state_changed.emit()
+        device.send_text(message)
+        self._pending_tx.append(self._reopen_user_turn)
+
+    def _reopen_user_turn(self) -> None:
+        """Return to the same user turn so the over can be corrected."""
+        engine = self._engine
+        if engine is None or not engine.is_user_turn:
+            return
+        self._rx_buffer = ""
+        self._state = SessionState.AWAITING_USER
+        self.user_buffer_changed.emit("")
+        self.state_changed.emit()
 
     def _transmit_or_advance(self, text: str, *, transmit: bool) -> None:
         device = self._device
@@ -247,6 +308,7 @@ class SessionController(QObject):
         engine = self._engine
         if engine is None:
             return
+        self._attempts = 0
         engine.advance()
         self._play_current()
 
