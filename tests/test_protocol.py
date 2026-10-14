@@ -30,6 +30,16 @@ def test_set_sidetone_paddle_only_flag() -> None:
     assert proto.set_sidetone(5, paddle_only=True) == bytes([0x01, 0x85])
 
 
+def test_set_sidetone_volume_encodes_admin_command() -> None:
+    assert proto.set_sidetone_volume("normal") == bytes([0x00, 0x19, 0x04])
+    assert proto.set_sidetone_volume("low") == bytes([0x00, 0x19, 0x01])
+
+
+def test_set_sidetone_volume_rejects_unknown_level() -> None:
+    with pytest.raises(ValueError):
+        proto.set_sidetone_volume("loud")
+
+
 def test_set_mode_combines_bits() -> None:
     assert proto.set_mode(paddle_echo=True, autospace=True) == bytes([0x0E, 0x42])
     assert proto.set_mode(

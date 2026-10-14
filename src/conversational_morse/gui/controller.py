@@ -116,6 +116,7 @@ class SessionController(QObject):
                 autospace=self._config.autospace,
                 lead_in_ms=self._config.lead_in_ms,
                 tail_ms=self._config.tail_ms,
+                sidetone_volume=self._config.sidetone_volume,
             )
         except KeyerError as exc:
             self.error.emit(str(exc))
@@ -153,6 +154,11 @@ class SessionController(QObject):
         self._config.wpm = wpm
         if self._device is not None and self._device.is_open:
             self._device.set_wpm(wpm)
+
+    def set_sidetone_volume(self, level: str) -> None:
+        self._config.sidetone_volume = level
+        if self._device is not None and self._device.is_open:
+            self._device.set_sidetone_volume(level)
 
     # -- session --------------------------------------------------------
     def start_qso(

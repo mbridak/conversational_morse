@@ -98,3 +98,24 @@ def test_ping_emits_current_status(fake_clock: FakeClock) -> None:
     keyer.ping()
     events = keyer.drain_events()
     assert any(isinstance(e, StatusEvent) for e in events)
+
+
+def test_configure_records_sidetone_volume(fake_clock: FakeClock) -> None:
+    keyer = SimulatedKeyer(fake_clock)
+    keyer.open()
+    keyer.configure(
+        wpm=20,
+        sidetone_index=5,
+        paddle_echo=True,
+        autospace=True,
+        sidetone_volume="low",
+    )
+    assert keyer.sidetone_volume == "low"
+
+
+def test_set_sidetone_volume_updates_level(fake_clock: FakeClock) -> None:
+    keyer = _open_simulator(fake_clock)
+    keyer.set_sidetone_volume("low")
+    assert keyer.sidetone_volume == "low"
+    keyer.set_sidetone_volume("normal")
+    assert keyer.sidetone_volume == "normal"

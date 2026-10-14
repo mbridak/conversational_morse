@@ -43,6 +43,11 @@ SIDETONE_CHOICES: tuple[tuple[str, int], ...] = (
     ("400 Hz", 10),
 )
 
+SIDETONE_VOLUME_CHOICES: tuple[tuple[str, str], ...] = (
+    ("Normal", "normal"),
+    ("Low", "low"),
+)
+
 SPEAKER_COLOURS: dict[str, str] = {
     "dx": "#1f6feb",
     "user": "#1a7f37",
@@ -114,10 +119,24 @@ class MainWindow(QMainWindow):
         if position >= 0:
             self.sidetone_combo.setCurrentIndex(position)
 
+        self.sidetone_volume_combo = QComboBox()
+        for label, level in SIDETONE_VOLUME_CHOICES:
+            self.sidetone_volume_combo.addItem(label, level)
+        volume_position = self.sidetone_volume_combo.findData(
+            self._config.keyer.sidetone_volume,
+        )
+        if volume_position >= 0:
+            self.sidetone_volume_combo.setCurrentIndex(volume_position)
+        self.sidetone_volume_combo.setToolTip(
+            "Sidetone level. WinKeyer 3.1 firmware only offers two levels.",
+        )
+
         settings.addWidget(QLabel("Speed:"))
         settings.addWidget(self.wpm_spin)
         settings.addWidget(QLabel("Sidetone:"))
         settings.addWidget(self.sidetone_combo)
+        settings.addWidget(QLabel("Volume:"))
+        settings.addWidget(self.sidetone_volume_combo)
         self.station_button = QPushButton("Station setup...")
         settings.addWidget(self.station_button)
         self.require_copy_check = QCheckBox("Require correct copy")
@@ -211,6 +230,9 @@ class MainWindow(QMainWindow):
         self.connect_button.clicked.connect(self._toggle_connection)
         self.simulator_check.toggled.connect(lambda _: self._refresh_ports())
         self.wpm_spin.valueChanged.connect(self._on_wpm_changed)
+        self.sidetone_volume_combo.currentIndexChanged.connect(
+            self._on_sidetone_volume_changed,
+        )
         self.station_button.clicked.connect(self._open_station_dialog)
         self.require_copy_check.toggled.connect(self._on_require_copy_toggled)
 
@@ -271,6 +293,7 @@ class MainWindow(QMainWindow):
         config.use_simulator = self.simulator_check.isChecked()
         config.wpm = self.wpm_spin.value()
         config.sidetone_index = int(self.sidetone_combo.currentData())
+        config.sidetone_volume = str(self.sidetone_volume_combo.currentData())
         config.require_correct_copy = self.require_copy_check.isChecked()
         return config
 
@@ -288,6 +311,12 @@ class MainWindow(QMainWindow):
     def _on_wpm_changed(self, value: int) -> None:
         if self.controller.is_connected:
             self.controller.set_wpm(value)
+
+    def _on_sidetone_volume_changed(self) -> None:
+        level = str(self.sidetone_volume_combo.currentData())
+        self._config.keyer.sidetone_volume = level
+        self.controller.set_sidetone_volume(level)
+        save_config(self._config)
 
     def _start_qso(self, mode: QsoMode) -> None:
         length = self.length_combo.currentData()

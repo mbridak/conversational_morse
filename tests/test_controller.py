@@ -49,6 +49,37 @@ def test_connect_reports_connected(controller: SessionController) -> None:
     assert state_of(controller) is SessionState.IDLE
 
 
+def test_connect_applies_configured_sidetone_volume(
+    qapp: object,
+    fake_clock: FakeClock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        ctrl_mod,
+        "time",
+        types.SimpleNamespace(monotonic=fake_clock),
+    )
+    device = SimulatedKeyer(fake_clock)
+    ctrl = SessionController(
+        KeyerConfig(wpm=20, use_simulator=True, sidetone_volume="low"),
+        device_factory=lambda _config: device,
+    )
+    try:
+        ctrl.connect_keyer()
+        assert device.sidetone_volume == "low"
+    finally:
+        ctrl.disconnect_keyer()
+
+
+def test_set_sidetone_volume_updates_live_device(
+    controller: SessionController,
+) -> None:
+    controller.set_sidetone_volume("low")
+    device = controller.device
+    assert isinstance(device, SimulatedKeyer)
+    assert device.sidetone_volume == "low"
+
+
 def test_start_qso_sends_dx_cq_and_waits(
     controller: SessionController,
     fake_clock: FakeClock,

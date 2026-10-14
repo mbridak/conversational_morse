@@ -32,6 +32,7 @@ class SimulatedKeyer(KeyerDevice):
         self._open = False
         self._wpm = 20
         self._busy = False
+        self._sidetone_volume = "normal"
         self._status = KeyerStatus.empty()
         self._timeline: list[tuple[float, int, KeyerEvent]] = []
         self._sequence = 0
@@ -55,6 +56,11 @@ class SimulatedKeyer(KeyerDevice):
         """Every text block passed to :meth:`send_text` in order."""
         return list(self._sent)
 
+    @property
+    def sidetone_volume(self) -> str:
+        """The most recently applied sidetone volume level."""
+        return self._sidetone_volume
+
     def open(self) -> None:
         self._open = True
         self._busy = False
@@ -73,8 +79,13 @@ class SimulatedKeyer(KeyerDevice):
         autospace: bool,
         lead_in_ms: int = 10,
         tail_ms: int = 10,
+        sidetone_volume: str = "normal",
     ) -> None:
         self._wpm = wpm
+        self._sidetone_volume = sidetone_volume
+
+    def set_sidetone_volume(self, level: str) -> None:
+        self._sidetone_volume = level
 
     def set_wpm(self, wpm: int) -> None:
         self._wpm = wpm

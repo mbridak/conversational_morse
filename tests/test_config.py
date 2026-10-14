@@ -34,6 +34,16 @@ def test_keyer_defaults() -> None:
     keyer = KeyerConfig()
     assert keyer.baudrate == 1200
     assert keyer.paddle_echo is True
+    assert keyer.sidetone_volume == "normal"
+
+
+def test_keyer_rejects_unknown_sidetone_volume() -> None:
+    with pytest.raises(ValidationError):
+        KeyerConfig(sidetone_volume="loud")
+
+
+def test_keyer_normalises_sidetone_volume() -> None:
+    assert KeyerConfig(sidetone_volume="LOW").sidetone_volume == "low"
 
 
 def test_default_app_config_has_station_and_keyer() -> None:

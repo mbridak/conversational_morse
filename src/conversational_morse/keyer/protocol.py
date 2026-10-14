@@ -25,6 +25,11 @@ ADMIN_SEND_STANDALONE_MESSAGE: Final = 14
 ADMIN_LOAD_XMODE: Final = 15
 ADMIN_SET_HIGH_BAUD: Final = 17
 ADMIN_SET_LOW_BAUD: Final = 18
+# WinKeyer 3.1 sidetone volume. The datasheet prints this command as
+# <00><24> but every other entry in the admin table uses its list index as the
+# opcode (Set WK3 Mode = 20, Read Vcc = 21, Get IC Type = 24), so the value is
+# 25. 0x18 already belongs to Get IC Type on shipping firmware.
+ADMIN_SET_SIDETONE_VOLUME: Final = 25
 
 # Immediate command opcodes
 CMD_SIDETONE: Final = 0x01
@@ -81,6 +86,15 @@ POT_BYTE_MASK: Final = 0x80
 
 MAX_BUFFER_CHARS: Final = 120
 
+# Sidetone volume levels (argument of ADMIN_SET_SIDETONE_VOLUME).
+SIDETONE_VOLUME_CODES: Final[dict[str, int]] = {
+    "normal": 0x04,
+    "low": 0x01,
+}
+
+# First firmware revision that implements the sidetone volume command.
+SIDETONE_VOLUME_MIN_REVISION: Final = 31
+
 # Characters the WinKeyer maps to standard prosigns. These are sent inside the
 # wire text so prosigns are transmitted without an inter-character gap.
 PROSIGN_CODES: Final[dict[str, str]] = {
@@ -123,6 +137,20 @@ def set_sidetone(index: int, *, paddle_only: bool = False) -> bytes:
         raise ValueError(msg)
     value = index | (0x80 if paddle_only else 0x00)
     return bytes([CMD_SIDETONE, value])
+
+
+def set_sidetone_volume(level: str) -> bytes:
+    """Build the admin command that selects the sidetone volume level.
+
+    Only WinKeyer 3.1 and later implement this command. ``level`` is one of
+    the keys of :data:`SIDETONE_VOLUME_CODES`.
+    """
+    try:
+        value = SIDETONE_VOLUME_CODES[level]
+    except KeyError as exc:
+        msg = f"unknown sidetone volume level: {level!r}"
+        raise ValueError(msg) from exc
+    return admin(ADMIN_SET_SIDETONE_VOLUME, value)
 
 
 def set_mode(

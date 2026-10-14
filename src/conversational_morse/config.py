@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Final
+
 from pydantic import BaseModel, Field, field_validator
 
 DEFAULT_CALLSIGN = "N0CALL"
+
+SIDETONE_VOLUME_LEVELS: Final[tuple[str, ...]] = ("normal", "low")
 
 
 class StationConfig(BaseModel):
@@ -48,6 +52,7 @@ class KeyerConfig(BaseModel):
     baudrate: int = Field(default=1200, ge=1200, le=9600)
     wpm: int = Field(default=20, ge=5, le=99)
     sidetone_index: int = Field(default=5, ge=0, le=10)
+    sidetone_volume: str = "normal"
     paddle_echo: bool = True
     autospace: bool = True
     lead_in_ms: int = Field(default=10, ge=0, le=250)
@@ -55,6 +60,15 @@ class KeyerConfig(BaseModel):
     over_idle_seconds: float = Field(default=2.5, gt=0.5, le=10.0)
     require_correct_copy: bool = True
     use_simulator: bool = False
+
+    @field_validator("sidetone_volume")
+    @classmethod
+    def _valid_sidetone_volume(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if cleaned not in SIDETONE_VOLUME_LEVELS:
+            msg = "sidetone_volume must be 'normal' or 'low'"
+            raise ValueError(msg)
+        return cleaned
 
 
 class AppConfig(BaseModel):

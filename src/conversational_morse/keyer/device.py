@@ -143,8 +143,13 @@ class KeyerDevice(ABC):
         autospace: bool,
         lead_in_ms: int = 10,
         tail_ms: int = 10,
+        sidetone_volume: str = "normal",
     ) -> None:
         """Apply operating parameters to the keyer."""
+
+    @abstractmethod
+    def set_sidetone_volume(self, level: str) -> None:
+        """Set the sidetone volume level (WinKeyer 3.1 and later)."""
 
     @abstractmethod
     def set_wpm(self, wpm: int) -> None:

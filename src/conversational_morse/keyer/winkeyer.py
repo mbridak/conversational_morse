@@ -144,6 +144,7 @@ class WinKeyerDevice(KeyerDevice):
         autospace: bool,
         lead_in_ms: int = 10,
         tail_ms: int = 10,
+        sidetone_volume: str = "normal",
     ) -> None:
         self._wpm = wpm
         self._raw_write(
@@ -152,6 +153,13 @@ class WinKeyerDevice(KeyerDevice):
         self._raw_write(proto.set_sidetone(sidetone_index))
         self._raw_write(proto.set_ptt_lead_tail(lead_in_ms, tail_ms))
         self._raw_write(proto.set_wpm(wpm))
+        self.set_sidetone_volume(sidetone_volume)
+
+    def set_sidetone_volume(self, level: str) -> None:
+        revision = self._revision
+        if revision is None or revision < proto.SIDETONE_VOLUME_MIN_REVISION:
+            return
+        self._raw_write(proto.set_sidetone_volume(level))
 
     def set_wpm(self, wpm: int) -> None:
         self._wpm = wpm
