@@ -116,13 +116,6 @@ mode, enables paddle echo and autospace, and then streams ASCII to the device.
 Incoming status bytes, speed-pot changes and character echoes are decoded on a
 background thread and surfaced to the UI as events.
 
-### Using a transmitter
-
-The WinKeyer's key and PTT outputs can be connected to a real rig. The app sets
-the PTT lead-in/tail delays and sidetone according to the configuration. If you
-only want to practise, leave the key output disconnected and listen to the
-WinKeyer's sidetone.
-
 ## Development
 
 ```sh
