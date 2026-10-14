@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## 0.2.0
+
+### Added
+
+- Sidetone volume control (normal or low), applied when you connect and whenever
+  you change the setting. It needs WinKeyer firmware revision 31 or later.
+
 ## 0.1.0
 
 ### Added
@@ -9,8 +16,6 @@ All notable changes to this project are documented here.
 - PyQt6 desktop application for practising realistic CW QSOs.
 - K1EL WinKeyer USB backend (host mode) for transmitting Morse and reading
   paddle echo.
-- Sidetone volume control (normal or low), applied when you connect and whenever
-  you change the setting. It needs WinKeyer firmware revision 31 or later.
 - Simulated WinKeyer backend for hardware-free practice and deterministic tests.
 - Simulated contacts that follow the W6JIM CW QSO protocol: call CQ or answer a
   CQ, run the RST/QTH/name, rig/antenna/weather and age/years/key exchanges, and
