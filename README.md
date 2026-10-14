@@ -1,4 +1,5 @@
 # Conversational Morse
+## AI Slop put to good use.
 
 [![PyPI](https://img.shields.io/pypi/v/conversational-morse.svg)](https://pypi.org/project/conversational-morse/)
 [![Python versions](https://img.shields.io/pypi/pyversions/conversational-morse.svg)](https://pypi.org/project/conversational-morse/)
