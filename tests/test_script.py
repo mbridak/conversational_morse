@@ -19,6 +19,8 @@ from conversational_morse.qso.script import (
     grade,
     greeting_for_hour,
     normalize,
+    parse_repeat_request,
+    repeat_reply,
     repeat_request,
 )
 
@@ -242,3 +244,97 @@ def test_repeat_request_flags_wrong_call() -> None:
     report = CopyReport(found=(), missing=("CALL",), wrong=("W7XYZ",))
     request = repeat_request("DL1ABC", "W6ABC", report)
     assert request.count("CALL?") == 1
+
+
+def test_dx_turns_carry_repeat_phrases() -> None:
+    turns = build_conversation(
+        STATION,
+        DX,
+        QsoMode.DX_CALLS_CQ,
+        QsoLength.FULL,
+        rng=random.Random(5),
+    )
+    cq = turns[0]
+    assert cq.speaker is Speaker.DX
+    assert cq.repeat_phrases["CALL"] == "DL1ABC DL1ABC"
+
+    by_label = {turn.label: turn for turn in turns if turn.speaker is Speaker.DX}
+    assert by_label["P1"].repeat_phrases["QTH"] == "QTH MUNICH, DE MUNICH, DE"
+    assert by_label["P2"].repeat_phrases["ANT"] == "ANT DIPOLE"
+    assert by_label["P3"].repeat_phrases["YRS"] == "BEEN HAM FER 15 YRS"
+
+
+def test_user_turns_have_no_repeat_phrases() -> None:
+    turns = build_conversation(
+        STATION,
+        DX,
+        QsoMode.DX_CALLS_CQ,
+        QsoLength.FULL,
+        rng=random.Random(5),
+    )
+    user_turns = [turn for turn in turns if turn.speaker is Speaker.USER]
+    assert all(not turn.repeat_phrases for turn in user_turns)
+
+
+def test_parse_repeat_request_finds_known_items() -> None:
+    items = parse_repeat_request(
+        "QTH? NAME?",
+        dx_callsign="DL1ABC",
+        available=("CALL", "RST", "QTH", "NAME"),
+    )
+    assert items == ("QTH", "NAME")
+
+
+def test_parse_repeat_request_partial_call_asks_for_call() -> None:
+    assert parse_repeat_request(
+        "W6?",
+        dx_callsign="DL1ABC",
+        available=("CALL", "RST"),
+    ) == ("CALL",)
+    assert parse_repeat_request(
+        "DL1?",
+        dx_callsign="DL1ABC",
+        available=("CALL", "RST"),
+    ) == ("CALL",)
+    assert parse_repeat_request(
+        "?",
+        dx_callsign="DL1ABC",
+        available=("CALL",),
+    ) == ("CALL",)
+
+
+def test_parse_repeat_request_ignores_ordinary_questions() -> None:
+    assert (
+        parse_repeat_request(
+            "HW?",
+            dx_callsign="DL1ABC",
+            available=("CALL", "RST", "QTH"),
+        )
+        == ()
+    )
+    assert parse_repeat_request("", dx_callsign="DL1ABC", available=("CALL",)) == ()
+
+
+def test_parse_repeat_request_deduplicates() -> None:
+    items = parse_repeat_request(
+        "QTH? QTH?",
+        dx_callsign="DL1ABC",
+        available=("QTH",),
+    )
+    assert items == ("QTH",)
+
+
+def test_repeat_reply_for_call_is_sent_twice() -> None:
+    assert repeat_reply("DL1ABC", "W6ABC", ("CALL",), {"CALL": "DL1ABC DL1ABC"}) == (
+        "DL1ABC DL1ABC"
+    )
+
+
+def test_repeat_reply_wraps_other_items() -> None:
+    reply = repeat_reply(
+        "DL1ABC",
+        "W6ABC",
+        ("QTH",),
+        {"QTH": "QTH MUNICH, DE MUNICH, DE"},
+    )
+    assert reply == "W6ABC DE DL1ABC QTH MUNICH, DE MUNICH, DE AGN W6ABC DE DL1ABC K"

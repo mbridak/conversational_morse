@@ -35,6 +35,8 @@ def test_keyer_defaults() -> None:
     assert keyer.baudrate == 1200
     assert keyer.paddle_echo is True
     assert keyer.sidetone_volume == "normal"
+    assert keyer.show_dx_output is True
+    assert keyer.require_correct_copy is True
 
 
 def test_keyer_rejects_unknown_sidetone_volume() -> None:

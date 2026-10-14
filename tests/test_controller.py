@@ -12,7 +12,7 @@ from conversational_morse.config import KeyerConfig, StationConfig
 from conversational_morse.gui import controller as ctrl_mod
 from conversational_morse.gui.controller import SessionController, SessionState
 from conversational_morse.keyer.simulator import SimulatedKeyer
-from conversational_morse.qso import QsoLength, QsoMode
+from conversational_morse.qso import QsoLength, QsoMode, Speaker
 
 STATION = StationConfig(callsign="W6ABC", name="JIM", qth="FRESNO, CA")
 
@@ -261,3 +261,75 @@ def test_correct_cq_answer_advances(
     controller._on_tx_complete()
     assert engine.index == start_index + 1
     assert state_of(controller) is SessionState.DX_SENDING
+
+
+def test_partial_call_asks_dx_to_repeat_callsign(
+    controller: SessionController,
+) -> None:
+    """Answering a CQ with a partial call plus '?' makes the DX send its call."""
+    controller.start_qso(QsoMode.DX_CALLS_CQ, QsoLength.SHORT, STATION)
+    controller._on_tx_complete()  # DX CQ finishes -> operator's answer turn
+    engine = controller.engine
+    assert engine is not None
+    device = controller.device
+    assert isinstance(device, SimulatedKeyer)
+    index_before = engine.index
+
+    controller.submit_typed("W6?")
+    controller._on_tx_complete()  # key the request -> DX repeats its call
+    assert state_of(controller) is SessionState.DX_SENDING
+    assert device.sent_text[-1] == f"{engine.dx_callsign} {engine.dx_callsign}"
+
+    controller._on_tx_complete()  # repeat finishes -> same turn again
+    assert state_of(controller) is SessionState.AWAITING_USER
+    assert engine.index == index_before
+
+
+def test_detail_repeat_request_resends_info(
+    controller: SessionController,
+) -> None:
+    """A later 'QTH?' makes the DX resend that detail and reopens the turn."""
+    controller.start_qso(QsoMode.DX_CALLS_CQ, QsoLength.SHORT, STATION)
+    controller._on_tx_complete()  # DX CQ -> answer turn
+    engine = controller.engine
+    assert engine is not None
+    controller.submit_typed(engine.model_answer())
+    controller._on_tx_complete()  # answer keyed -> DX P1
+    controller._on_tx_complete()  # P1 sent -> operator's P1 turn
+    assert state_of(controller) is SessionState.AWAITING_USER
+    device = controller.device
+    assert isinstance(device, SimulatedKeyer)
+    index_before = engine.index
+
+    controller.submit_typed("QTH?")
+    controller._on_tx_complete()  # request keyed -> DX resends the QTH
+    assert state_of(controller) is SessionState.DX_SENDING
+    p1 = next(
+        turn
+        for turn in engine.turns
+        if turn.label == "P1" and turn.speaker is Speaker.DX
+    )
+    assert p1.repeat_phrases["QTH"] in device.sent_text[-1]
+
+    controller._on_tx_complete()  # resend finishes -> same turn again
+    assert state_of(controller) is SessionState.AWAITING_USER
+    assert engine.index == index_before
+
+
+def test_repeat_request_does_not_advance_past_the_turn(
+    controller: SessionController,
+) -> None:
+    """Even without 'require correct copy', '?' is handled as a repeat."""
+    config = KeyerConfig(wpm=20, use_simulator=True, require_correct_copy=False)
+    controller.configure_settings(config)
+    controller.start_qso(QsoMode.DX_CALLS_CQ, QsoLength.SHORT, STATION)
+    controller._on_tx_complete()
+    engine = controller.engine
+    assert engine is not None
+    index_before = engine.index
+
+    controller.submit_typed("W6?")
+    controller._on_tx_complete()
+    controller._on_tx_complete()
+    assert engine.index == index_before
+    assert state_of(controller) is SessionState.AWAITING_USER

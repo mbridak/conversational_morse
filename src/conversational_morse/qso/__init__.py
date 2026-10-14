@@ -19,6 +19,11 @@ from .script import (
     grade,
     greeting_for_hour,
     normalize,
+    parse_repeat_request,
+    protocol_one_phrases,
+    protocol_three_phrases,
+    protocol_two_phrases,
+    repeat_reply,
     repeat_request,
 )
 
@@ -36,6 +41,11 @@ __all__ = [
     "grade",
     "greeting_for_hour",
     "normalize",
+    "parse_repeat_request",
+    "protocol_one_phrases",
+    "protocol_three_phrases",
+    "protocol_two_phrases",
     "random_dx_station",
+    "repeat_reply",
     "repeat_request",
 ]

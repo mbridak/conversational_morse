@@ -8,6 +8,12 @@ All notable changes to this project are documented here.
 
 - Sidetone volume control (normal or low), applied when you connect and whenever
   you change the setting. It needs WinKeyer firmware revision 31 or later.
+- A **Show DX output** option to hide what the simulated station sends, so you
+  can practise copying by ear.
+- Operator-initiated repeat requests. Send a partial callsign plus a question
+  mark (`W6?`) to hear the DX callsign twice when answering a CQ, or name a
+  detail (`RST?`, `QTH?`, `NAME?`, `RIG?`, `ANT?`, `WX?`, `AGE?`, `YRS?`,
+  `KEY?`) later in the contact to have the DX resend it; the over then resumes.
 
 ## 0.1.0
 

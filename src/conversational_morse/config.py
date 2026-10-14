@@ -59,6 +59,7 @@ class KeyerConfig(BaseModel):
     tail_ms: int = Field(default=10, ge=0, le=250)
     over_idle_seconds: float = Field(default=2.5, gt=0.5, le=10.0)
     require_correct_copy: bool = True
+    show_dx_output: bool = True
     use_simulator: bool = False
 
     @field_validator("sidetone_volume")

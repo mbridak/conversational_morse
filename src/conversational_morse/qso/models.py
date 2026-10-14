@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
@@ -198,6 +199,7 @@ class Turn:
     hint: str = ""
     expectations: tuple[Expectation, ...] = ()
     is_two_dits: bool = field(default=False)
+    repeat_phrases: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

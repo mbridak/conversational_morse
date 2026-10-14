@@ -29,7 +29,9 @@ from ..qso import (
     QsoLength,
     QsoMode,
     Speaker,
+    parse_repeat_request,
     random_dx_station,
+    repeat_reply,
     repeat_request,
 )
 
@@ -170,10 +172,16 @@ class SessionController(QObject):
         dx = random_dx_station(self._rng)
         self._engine = QsoEngine.create(station, dx, mode, length, rng=self._rng)
         self._attempts = 0
-        self.log_message.emit(
-            "system",
-            f"New QSO with {dx.callsign} ({dx.name}, {dx.qth})",
-        )
+        if self._config.show_dx_output:
+            self.log_message.emit(
+                "system",
+                f"New QSO with {dx.callsign} ({dx.name}, {dx.qth})",
+            )
+        else:
+            self.log_message.emit(
+                "system",
+                "New QSO with a DX station (call signs and details hidden).",
+            )
         self._play_current()
 
     def _play_current(self) -> None:
@@ -235,14 +243,56 @@ class SessionController(QObject):
         report = engine.grade_current(text)
         engine.record(Speaker.USER, text)
         self.log_message.emit("user", text)
-        self.copy_report_ready.emit(report)
         self._rx_buffer = ""
         self.user_buffer_changed.emit("")
+        if self._handle_user_repeat_request(text, transmit=transmit):
+            return
+        self.copy_report_ready.emit(report)
         if self._config.require_correct_copy and not report.is_complete:
             self._handle_incomplete_over(text, report, transmit=transmit)
             return
         self._attempts = 0
         self._transmit_or_advance(text, transmit=transmit)
+
+    def _handle_user_repeat_request(self, text: str, *, transmit: bool) -> bool:
+        """Have the DX resend requested details, returning True when handled.
+
+        The operator asks for a repeat by keying an item followed by a question
+        mark (``QTH?``), or a partial copy of the DX callsign followed by a
+        question mark (``W6?``) to hear the call again.
+        """
+        engine = self._engine
+        if engine is None:
+            return False
+        phrases = engine.available_repeat_phrases()
+        if not phrases:
+            return False
+        items = parse_repeat_request(
+            text,
+            dx_callsign=engine.dx_callsign,
+            available=tuple(phrases),
+        )
+        if not items:
+            return False
+        message = repeat_reply(
+            engine.dx_callsign,
+            engine.user_callsign,
+            items,
+            phrases,
+        )
+        self.log_message.emit(
+            "system",
+            "Repeat requested; the DX is sending it again.",
+        )
+        device = self._device
+        if transmit and device is not None and device.is_open:
+            self._state = SessionState.USER_SENDING
+            self.state_changed.emit()
+            device.send_text(text)
+            self._pending_tx.append(partial(self._send_dx_repeat, message))
+        else:
+            self._send_dx_repeat(message)
+        return True
 
     def _handle_incomplete_over(
         self,

@@ -147,7 +147,13 @@ class MainWindow(QMainWindow):
             "Make the DX station ask for a repeat when your over is missing "
             "information or uses the wrong callsign.",
         )
+        self.show_dx_check = QCheckBox("Show DX output")
+        self.show_dx_check.setChecked(self._config.keyer.show_dx_output)
+        self.show_dx_check.setToolTip(
+            "Uncheck to hide the text of what the DX sends (listen by ear).",
+        )
         settings.addWidget(self.require_copy_check)
+        settings.addWidget(self.show_dx_check)
         settings.addStretch(1)
         outer.addLayout(settings)
 
@@ -235,6 +241,7 @@ class MainWindow(QMainWindow):
         )
         self.station_button.clicked.connect(self._open_station_dialog)
         self.require_copy_check.toggled.connect(self._on_require_copy_toggled)
+        self.show_dx_check.toggled.connect(self._on_show_dx_toggled)
 
         self.call_cq_button.clicked.connect(
             lambda: self._start_qso(QsoMode.USER_CALLS_CQ),
@@ -295,10 +302,16 @@ class MainWindow(QMainWindow):
         config.sidetone_index = int(self.sidetone_combo.currentData())
         config.sidetone_volume = str(self.sidetone_volume_combo.currentData())
         config.require_correct_copy = self.require_copy_check.isChecked()
+        config.show_dx_output = self.show_dx_check.isChecked()
         return config
 
     def _on_require_copy_toggled(self, checked: bool) -> None:
         self._config.keyer.require_correct_copy = checked
+        self.controller.configure_settings(self._config.keyer)
+        save_config(self._config)
+
+    def _on_show_dx_toggled(self, checked: bool) -> None:
+        self._config.keyer.show_dx_output = checked
         self.controller.configure_settings(self._config.keyer)
         save_config(self._config)
 
@@ -331,6 +344,8 @@ class MainWindow(QMainWindow):
             self.controller.submit_typed(text)
 
     def _on_log(self, speaker: str, text: str) -> None:
+        if speaker == "dx" and not self._config.keyer.show_dx_output:
+            return
         colour = SPEAKER_COLOURS.get(speaker, "#c9d1d9")
         label = SPEAKER_LABELS.get(speaker, speaker.upper())
         style = f"color:{colour};"

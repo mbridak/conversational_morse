@@ -78,6 +78,18 @@ class QsoEngine:
         turn = self.current_turn
         return turn is not None and turn.speaker is Speaker.USER
 
+    def available_repeat_phrases(self) -> dict[str, str]:
+        """Merge the repeat phrases of every DX turn already sent.
+
+        Later turns win, so the operator can ask for a detail no matter which
+        earlier over carried it.
+        """
+        merged: dict[str, str] = {}
+        for turn in self._turns[: self._index]:
+            if turn.speaker is Speaker.DX:
+                merged.update(turn.repeat_phrases)
+        return merged
+
     def model_answer(self) -> str:
         """The ideal text for the current user turn."""
         turn = self.current_turn

@@ -91,6 +91,18 @@ def test_record_appends_to_transcript() -> None:
     assert engine.transcript == [(Speaker.USER, "TEST")]
 
 
+def test_available_repeat_phrases_grow_as_dx_sends() -> None:
+    engine = _engine()
+    assert engine.available_repeat_phrases() == {}
+    engine.advance()  # to the user's answer turn, after the DX CQ
+    assert engine.available_repeat_phrases()["CALL"] == "DL1ABC DL1ABC"
+    engine.advance()  # user's turn recorded; DX P1 now
+    engine.advance()  # past DX P1 -> user's P1 turn
+    phrases = engine.available_repeat_phrases()
+    assert phrases["QTH"] == "QTH MUNICH, DE MUNICH, DE"
+    assert phrases["CALL"] == "DL1ABC DL1ABC"
+
+
 def test_model_answer_on_finished_engine_raises() -> None:
     engine = _engine()
     for _ in range(len(engine.turns)):

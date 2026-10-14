@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import random
 import re
+from collections.abc import Collection, Mapping
 
 from ..config import StationConfig
 from .models import (
@@ -29,6 +30,51 @@ RST_PATTERNS: tuple[str, ...] = ("599", "5NN")
 # trailing letters keep rig/antenna names such as "FTDX101" or "K3" from being
 # mistaken for callsigns.
 CALLSIGN_PATTERN = re.compile(r"[A-Z]{1,2}\d[A-Z]{1,4}")
+
+# Labels the operator may ask the DX station to send again. Each matches a key
+# in a DX turn's ``repeat_phrases``.
+REPEAT_LABELS: tuple[str, ...] = (
+    "CALL",
+    "RST",
+    "QTH",
+    "NAME",
+    "RIG",
+    "ANT",
+    "WX",
+    "AGE",
+    "YRS",
+    "KEY",
+)
+
+
+def protocol_one_phrases(station: StationLike) -> dict[str, str]:
+    """Return the protocol-1 details a station can resend on request."""
+    return {
+        "CALL": f"{station.callsign} {station.callsign}",
+        "RST": f"RST {RST_PATTERNS[0]} {RST_PATTERNS[0]}",
+        "QTH": f"QTH {station.qth} {station.qth}",
+        "NAME": f"NAME {station.name} {station.name}",
+    }
+
+
+def protocol_two_phrases(station: StationLike) -> dict[str, str]:
+    """Return the protocol-2 details a station can resend on request."""
+    return {
+        "CALL": f"{station.callsign} {station.callsign}",
+        "RIG": f"RIG {station.rig} ES PWR {station.power}",
+        "ANT": f"ANT {station.antenna}",
+        "WX": f"WX {station.weather} ES TEMP {station.temperature_f}F",
+    }
+
+
+def protocol_three_phrases(station: StationLike) -> dict[str, str]:
+    """Return the protocol-3 details a station can resend on request."""
+    return {
+        "CALL": f"{station.callsign} {station.callsign}",
+        "AGE": f"AGE {station.age} YRS",
+        "YRS": f"BEEN HAM FER {station.years_licensed} YRS",
+        "KEY": f"MY KEY {station.key_type}",
+    }
 
 
 def greeting_for_hour(hour: int) -> str:
@@ -230,6 +276,7 @@ def build_conversation(
                 Speaker.DX,
                 "ANSWER",
                 f"{dx.callsign} {dx.callsign}",
+                repeat_phrases={"CALL": f"{dx.callsign} {dx.callsign}"},
             ),
         )
         turns.append(_user_protocol_one(user, dx, greeting, "CALL"))
@@ -238,6 +285,7 @@ def build_conversation(
                 Speaker.DX,
                 "P1",
                 protocol_one(dx, user, greeting=greeting, opener="RPRT"),
+                repeat_phrases=protocol_one_phrases(dx),
             ),
         )
     else:
@@ -246,6 +294,7 @@ def build_conversation(
                 Speaker.DX,
                 "CQ",
                 f"CQ CQ DE {dx.callsign} {dx.callsign} K",
+                repeat_phrases={"CALL": f"{dx.callsign} {dx.callsign}"},
             ),
         )
         turns.append(
@@ -262,16 +311,31 @@ def build_conversation(
                 Speaker.DX,
                 "P1",
                 protocol_one(dx, user, greeting=greeting, opener="CALL"),
+                repeat_phrases=protocol_one_phrases(dx),
             ),
         )
         turns.append(_user_protocol_one(user, dx, greeting, "RPRT"))
 
     if length in (QsoLength.MEDIUM, QsoLength.FULL):
-        turns.append(Turn(Speaker.DX, "P2", protocol_two(dx, user)))
+        turns.append(
+            Turn(
+                Speaker.DX,
+                "P2",
+                protocol_two(dx, user),
+                repeat_phrases=protocol_two_phrases(dx),
+            ),
+        )
         turns.append(_user_protocol_two(user, dx))
 
     if length is QsoLength.FULL:
-        turns.append(Turn(Speaker.DX, "P3", protocol_three(dx, user)))
+        turns.append(
+            Turn(
+                Speaker.DX,
+                "P3",
+                protocol_three(dx, user),
+                repeat_phrases=protocol_three_phrases(dx),
+            ),
+        )
         turns.append(_user_protocol_three(user, dx))
 
     # The station that did not answer the CQ traditionally starts the ending.
@@ -385,5 +449,66 @@ def repeat_request(
     body = " ".join(prompts) if prompts else "PSE RPT"
     return (
         f"{user_callsign} DE {dx_callsign} {body} AGN "
+        f"{user_callsign} DE {dx_callsign} K"
+    )
+
+
+def _looks_like_call(token: str, dx_callsign: str) -> bool:
+    """True when ``token`` could be a partial copy of the DX callsign."""
+    if dx_callsign and dx_callsign.startswith(token):
+        return True
+    return any(char.isdigit() for char in token)
+
+
+def parse_repeat_request(
+    text: str,
+    *,
+    dx_callsign: str,
+    available: Collection[str] = (),
+) -> tuple[str, ...]:
+    """Return the DX details the operator asked to hear again.
+
+    A token such as ``QTH?`` or ``NAME?`` asks for that item. A bare ``?`` or a
+    partial callsign followed by ``?`` (for example ``W6?``) asks for the DX
+    callsign. Tokens that match no known item and do not look like a callsign
+    are ignored, so a genuine question such as ``HW?`` is not treated as a
+    repeat request.
+    """
+    dx = normalize(dx_callsign)
+    known = {item.upper() for item in available}
+    items: list[str] = []
+    for raw in text.upper().split():
+        if not raw.endswith("?"):
+            continue
+        token = normalize(raw.rstrip("?"))
+        if not token:
+            candidates = ["CALL"]
+        elif token in known:
+            candidates = [token]
+        elif _looks_like_call(token, dx):
+            candidates = ["CALL"]
+        else:
+            candidates = []
+        for item in candidates:
+            if item not in items:
+                items.append(item)
+    return tuple(items)
+
+
+def repeat_reply(
+    dx_callsign: str,
+    user_callsign: str,
+    items: tuple[str, ...],
+    phrases: Mapping[str, str],
+) -> str:
+    """Build the DX over that resends the information the operator asked for."""
+    if items == ("CALL",):
+        return f"{dx_callsign} {dx_callsign}"
+    body = [phrases[item] for item in items if item in phrases]
+    if not body:
+        body = [f"{dx_callsign} {dx_callsign}"]
+    repeated = " ".join(body)
+    return (
+        f"{user_callsign} DE {dx_callsign} {repeated} AGN "
         f"{user_callsign} DE {dx_callsign} K"
     )

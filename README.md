@@ -98,6 +98,18 @@ belongs to neither station, the DX replies naming the missing items, for example
 accepts the over and continues so you never get stuck. Turn the checkbox off to
 return to advisory-only reporting.
 
+### Copying by ear
+
+Untick **Show DX output** to hide what the DX station sends, so you have to copy
+it by ear - which is the point of the trainer. The contact still runs normally
+and the DX text is withheld from the log.
+
+When you miss something, ask for it: send the item followed by a question mark
+and the DX sends it again. Use `?`, or the part of the call you did copy
+(`W6?`, `DL1?`), to hear the callsign twice, or name a detail (`RST?`, `QTH?`,
+`NAME?`, `RIG?`, `ANT?`, `WX?`, `AGE?`, `YRS?`, `KEY?`) to have it resent. The
+same turn stays open afterwards so you can send your over.
+
 ## How it works
 
 | Module | Responsibility |
