@@ -5,6 +5,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/conversational-morse.svg)](https://pypi.org/project/conversational-morse/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/mbridak/conversational-morse/blob/main/LICENSE)
 
+![Screenshot](pic/Screenshot.png)
 A PyQt6 desktop application that simulates a realistic amateur-radio CW (Morse
 code) contact so you can learn and practise sending and copying Morse. It drives
 a **K1EL WinKeyer USB** for both the code that the "other station" sends and the
